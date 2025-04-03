@@ -1,5 +1,5 @@
 import ProjectBox from "../ProjectBox";
-import Section from "../section";
+import Section from "../Section";
 import '../../App.css'
 import { useEffect, useState } from "react";
 

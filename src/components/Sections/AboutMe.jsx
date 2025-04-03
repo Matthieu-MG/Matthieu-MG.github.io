@@ -1,4 +1,4 @@
-import Section from "../section";
+import Section from "../Section";
 import '../../App.css'
 import Label from "../Label";
 

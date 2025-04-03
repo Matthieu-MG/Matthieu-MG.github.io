@@ -1,4 +1,4 @@
-import Section from "../section";
+import Section from "../Section";
 import { FaGithub, FaLinkedin, FaEnvelope } from 'react-icons/fa'
 
 export default function Contact({className=""}) {
