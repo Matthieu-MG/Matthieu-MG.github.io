@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { InitWebGL, ResizeCanvas, RenderRaymarcher, TestClientGPU, IsLowEndGPU } from './utils/canvas';
-import Section from './components/section';
 import AboutMe from './components/Sections/AboutMe';
 import Projects from './components/Sections/Projects';
 import SectionWrapper from './components/SectionWrapper';
