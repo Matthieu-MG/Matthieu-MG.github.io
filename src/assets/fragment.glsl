@@ -14,54 +14,6 @@ float noise(vec2 uv) {
    // return texture(iChannel0, uv).r;
 }
 
-float sdSphere( vec3 p, vec3 q, float s )
-{
-  return length(p - q)-s;
-}
-
-float sdVerticalCapsule( vec3 p, float h, float r, vec3 op )
-{
-  p.y -= clamp( p.y - op.y, 0.0, h );
-  return length( p - op ) - r;
-}
-
-float sdCappedCylinder( vec3 p, float h, float r, vec3 q )
-{
-  vec2 d = abs(vec2(length(p.xz - q.xz),p.y - q.y)) - vec2(r,h);
-  return min(max(d.x,d.y),0.0) + length(max(d,0.0));
-}
-
-float smin( float a, float b, float k )
-{
-    k *= 16.0/3.0;
-    float h = max( k-abs(a-b), 0.0 )/k;
-    return min(a,b) - h*h*h*(4.0-h)*k*(1.0/16.0);
-}
-
-vec2 sdLighthouse(vec3 p) {
-    // float cyl = sdVerticalCapsule(p, 3., 1., vec3(-5., 0., 0.));
-    float cyl = sdCappedCylinder(p, 4., .75, vec3(5., 0., 0.)); 
-    // float mid = sdOctahedron(p, 2., vec3(-5., -3.8, 0.));
-    // float mid = sdSphere(p, vec3(5., 3.8, 0.), 1.);
-    float mid = sdVerticalCapsule(p, 1., .5, vec3(5., 4., 0.));
-    float island = sdSphere(p, vec3(5., -3., 0.), 3.8);
-    
-    vec2 lighthouse = vec2(0.0);
-    lighthouse.x = min(cyl, mid);
-    lighthouse.x = min(lighthouse.x, island);
-    if(lighthouse.x == cyl) {
-        lighthouse.y = 1.;
-    }
-    else if (lighthouse.x == mid) {
-        lighthouse.y = 2.;
-    }
-    else {
-        lighthouse.y = 3.;
-    }
-    
-    return lighthouse;
-}
-
 float fbm(vec2 uv) {
     uv.x += iTime * .05;
     // uv *= -1.;
@@ -106,14 +58,6 @@ vec2 combineDistance(vec3 p) {
     
     float water = p.y - waveHeight(p, 40);
     return vec2(water, 0.0);
-    vec2 lighthouse = sdLighthouse(p);
-    // return lighthouse;
-    surface.x = min(water, lighthouse.x);
-    if(lighthouse.x < water) {
-        surface.y = lighthouse.y;
-    }
-    
-    return surface;
 }
 
 vec3 normal(vec3 p) {
@@ -125,26 +69,17 @@ vec3 normal(vec3 p) {
     ));
 }
 
-vec3 sampleTriplanar(sampler2D tex, vec3 p, vec3 N) {
-    vec3 absN = abs(N);
-    absN /= (absN.x + absN.y + absN.z);
-
-    vec3 XY = texture(tex, p.xy).rgb;
-    vec3 XZ = texture(tex, p.xz).rgb;
-    vec3 YZ = texture(tex, p.yz).rgb;
-
-    return XY * absN.z + XZ * absN.y + YZ * absN.x;
-}
-
 vec3 sky(vec2 uv) {
     vec3 sky = mix(vec3(0.5, 0.9, 1.0), vec3(0.0, 0.5, 1.0), uv.y);
     
-    vec3 clouds = vec3(noise(uv));
-    
-    float f = fbm(uv * 3.0);
+    // Removed clouds for increased performance (minimal), may be re-added later
+    float f = 0.0; 
+    // fbm(uv * 3.0);
+    /*
     f += fbm(uv * 2.0) * 0.5;
     f += fbm(uv) * 0.25;
-    f = smoothstep(0.5, 1.2, f); // Threshold clouds
+    f = smoothstep(0.5, 1.2, f);
+    */
     
     vec3 c = mix(sky, vec3(1.0), f);
     return mix(sky, c, uv.y - 0.3);
@@ -167,10 +102,10 @@ vec2 march(vec3 ro, vec3 rd) {
     return vec2(t, material);
 }
 
-vec3 shading(vec3 col, vec3 ro, vec3 rd, float t, vec2 uv, vec3 vDir) {
-    vec3 N = normal(ro + rd * t) * 0.9;
+vec3 shading(vec3 col, vec3 ro, vec3 rd, float t, vec2 uv) {
+    vec3 N = normal(ro + (-rd) * t) * 0.9;
     vec3 sunDir = normalize(vec3(0.0, .7, 1.0));
-    vec3 sunH = normalize(sunDir + vDir);
+    vec3 sunH = normalize(sunDir + rd);
     
     // Diffuse + Ambient
     col *= max(0.0, dot(N, sunDir));
@@ -180,22 +115,22 @@ vec3 shading(vec3 col, vec3 ro, vec3 rd, float t, vec2 uv, vec3 vDir) {
 
     // Specular
     vec3 spec_col = vec3(1.0f);
-    float spec_fact = pow(max(dot(sunH, N), 0.0), 8.);
-	float spec_strength = 8.;
+    float spec_fact = pow(max(dot(sunH, N), 0.0), 16.);
+	float spec_strength = .6;
 	vec3 specular = spec_col * spec_fact * spec_strength;
     col += specular;
     
     // SSS
-    float SSS_Distortion = 0.2;
-    float SSS_Scale = .4;
-    float SSS_Power = 8.;
-    float SSS_Strength = .5;
-    float SSS_Dist = 50.;
+    float SSS_Distortion = .2;
+    float SSS_Scale = 1.;
+    float SSS_Power = 2.;
+    float SSS_Strength = 1.5;
+    float SSS_Dist = 10.;
     
     vec3 scatterColor = vec3(0.05, 0.8, 0.7);
 	vec3 Hs = normalize(sunDir + N * SSS_Distortion);
-	// float scatter_fact = pow(max(dot(rd, -Hs), 0.0), SSS_Power) * SSS_Scale;
-    float scatter_fact = pow(max(dot(vDir, -Hs), 0.0), SSS_Power) * SSS_Scale;
+    
+    float scatter_fact = pow(max(dot(rd, -Hs), 0.0), SSS_Power) * SSS_Scale;
 	float dist_fact = (SSS_Dist - clamp(t, 0.0, SSS_Dist))/SSS_Dist;
 	vec3 scatter = SSS_Strength * dist_fact * scatterColor * scatter_fact;
     
@@ -203,61 +138,16 @@ vec3 shading(vec3 col, vec3 ro, vec3 rd, float t, vec2 uv, vec3 vDir) {
     
     // Fresnel
 	float F0 = .04;
-	float base = 1.0 - max(dot(vDir, sunH), 0.0);
+	float base = 1.0 - max(dot(rd, N), 0.0);
 	float exponential = pow(base, 5.);
 	float fresnel = exponential + F0 * (1.0 - exponential);
     
     // Reflection
-    vec3 R = reflect(vDir, N);
-    // No fresnel initially due to the viewing angle
+    vec3 R = reflect(rd, N);
     float rt = 1. - march(ro + rd * t, R).x;
     if (rt > 0.) {
-        col = mix(col, sky(R.xy / R.z * 0.5 + 0.5), fresnel);
+        col = col + sky(R.xy) * fresnel;
     }
-    // col = vec3(fresnel);
-    
-    // Refraction
-    vec3 Rf = normalize(refract(vDir, N, 1.333));
-    vec3 pos = ro + rd * t;
-    vec3 npos = pos + Rf * 0.5;
-    // March from there and color it
-    vec2 march = march(npos, Rf);
-    if(int(march.y) != 0) {
-        col = mix(col, vec3(.9, .9, 0.), 0.2);
-    }
-    // col = vec3(max(dot(vDir, -Hs), 0.0));
-    // col = sunDir;
-    
-    return col;
-}
-
-vec3 shadeLighthouse(vec3 col, vec3 p, vec3 rd, int mat) {
-    vec3 N = normal(p);
-    vec3 sunDir = normalize(vec3(0.0, 1.0, 1.0));
-    vec3 sunH = normalize(sunDir + rd);
-    
-    // Diffuse + Ambient
-    vec3 tex = vec3(.7, .1, .0);
-    if(mat == 2) {
-        tex = vec3(0.1, 0.4, 0.8);
-    }
-    else if (mat == 1) {
-        float h = mod(p.y * 6.5, 2.);
-        h = step(1., h);
-        tex = 1.0 - vec3(h) + vec3(0.7, 0.0, 0.0);
-    }
-    else {
-        tex = vec3(0.9, 0.9, 0.0);
-    }
-    col *= max(0.0, dot(N, sunDir)) * tex;
-    col += tex * 0.5;
-    
-    // Specular
-    vec3 spec_col = vec3(1.0f);
-    float spec_fact = pow(max(dot(sunH, N), 0.0), 8.);
-	float spec_strength = 16.;
-	vec3 specular = spec_col * spec_fact * spec_strength;
-    col += specular;
     
     return col;
 }
@@ -285,33 +175,30 @@ void main()
     vec2 uv = (gl_FragCoord.xy * 2. - iResolution.xy) / iResolution.y;
 
     float camHeight = 1.0;
-    vec3 camDir = vec3(0., 0., 1.);
-    // camHeight = sin(iTime) + 1.;
+    vec3 camDir = normalize(vec3(0., 0., 1.));
     // 0., 1., -5.
-    vec3 ro = vec3(.0, camHeight, -5.0);
+    
+    vec3 ro = vec3(5., camHeight, -5.0);
     vec3 rd = normalize(vec3(uv, 1.0));
+    vec3 col = vec3(0.0);
+    
+    // Avoids unnecessary raymarching
+    if(rd.y > 0.) {
+        col = sky(gl_FragCoord.xy / iResolution.xy);
+        fragColor = vec4(aces_tonemap(col), 1.0);
+        return;
+    }
     
     vec2 marchResult = march(ro, rd);
     float t = marchResult.x;
     int material = int(marchResult.y);
     
-    vec3 col = vec3(1.0) - vec3(t * 0.06);
-    col *= vec3(0.0, 0.0, 1.0);
-    col = mix( vec3(0.0, 0.0, 1.0), vec3(1.), t * 0.06);
+    // Simulates some kind of distant foam at the horizon, would look weird at higher cam positions
+    col = mix(vec3(0.0, 0.0, 1.0), vec3(1.), t * 0.06);
     
-    if(t > 25.) {
-        col = sky(gl_FragCoord.xy / iResolution.xy);
-    }
-    else {
-        if(material == 0) {
-            col = shading(col, ro, rd, t, gl_FragCoord.xy / iResolution.xy, camDir);
-        }
-        else {
-            col = shadeLighthouse(col, ro + rd * t, rd, material);
-        }
-    }
+    // -rd since we need the view direction to be from point to cam
+    col = shading(col, ro, -rd, t, gl_FragCoord.xy / iResolution.xy);
     
     fragColor = vec4(aces_tonemap(col), 1.0);
-    // fragColor = vec4(uv, 0., 1.);
-    // fragColor = vec4(0.0);
+    // fragColor = vec4(col, 1.0);
 }

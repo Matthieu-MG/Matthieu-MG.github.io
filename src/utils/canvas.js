@@ -67,7 +67,7 @@ function IsLowEndGPU(gl) {
         "radeon r5", "radeon r7", "mali", "adreno", "powervr"
     ]
 
-    const gpuName = GetClientGPUDetails(gl).gpuVendor.toLowerCase();
+    const gpuName = GetClientGPUDetails(gl).gpuRenderer.toLowerCase();
 
     return lowEndGPUs.some((gpu) => gpuName.includes(gpu));
 }

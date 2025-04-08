@@ -37,6 +37,7 @@
   width: 100%;
   height: 100%;
   background-color: white;
+  z-index: 5;
 
   pointer-events: none;
   animation: fadeOut 2.5s ease-out forwards;
